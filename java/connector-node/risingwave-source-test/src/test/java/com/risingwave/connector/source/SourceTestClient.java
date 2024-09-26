@@ -36,7 +36,6 @@ import java.util.UUID;
 import javax.sql.DataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.testcontainers.containers.JdbcDatabaseContainer;
 
 public class SourceTestClient {
     static final Logger LOG = LoggerFactory.getLogger(SourceTestClient.class.getName());
@@ -124,25 +123,21 @@ public class SourceTestClient {
     }
 
     protected Iterator<ConnectorServiceProto.GetEventStreamResponse> getEventStreamStart(
-            JdbcDatabaseContainer<?> container,
-            ConnectorServiceProto.SourceType sourceType,
-            String databaseName,
-            String tableName) {
-        String port = String.valueOf(URI.create(container.getJdbcUrl().substring(5)).getPort());
+            // JdbcDatabaseContainer<?> container,
+            ConnectorServiceProto.SourceType sourceType, String databaseName, String tableName) {
         ConnectorServiceProto.GetEventStreamRequest req =
                 ConnectorServiceProto.GetEventStreamRequest.newBuilder()
                         .setSourceId(1005)
                         .setSourceType(sourceType)
                         .setStartOffset("")
-                        .putProperties("hostname", container.getHost())
-                        .putProperties("port", port)
-                        .putProperties("username", container.getUsername())
-                        .putProperties("password", container.getPassword())
+                        .putProperties("hostname", "localhost")
+                        .putProperties("port", "8432")
+                        .putProperties("username", "myuser")
+                        .putProperties("password", "123456")
                         .putProperties("database.name", databaseName)
                         .putProperties("table.name", tableName)
                         .putProperties("schema.name", "public") // pg only
-                        .putProperties("slot.name", "orders") // pg only
-                        .putProperties("server.id", "1") // mysql only
+                        .putProperties("slot.name", "pg_slot") // pg only
                         .build();
         Iterator<ConnectorServiceProto.GetEventStreamResponse> responses = null;
         try {

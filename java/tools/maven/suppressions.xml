@@ -24,6 +24,7 @@ under the License.
 
 <suppressions>
     <!-- target directory is not relevant for checkstyle -->
+    <suppress files="[\\/]io.debezium[\\/].*" checks=".*"/>
     <suppress
             files="[\\/]target[\\/]"
             checks=".*"/>
