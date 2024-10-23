@@ -261,7 +261,7 @@ impl HummockReadVersion {
                             .state_table_info
                             .info()
                             .get(&table_id)
-                            .expect("should exist")
+                            .expect(&format!("{table_id} should exist"))
                             .committed_epoch,
                     )
                 }),
