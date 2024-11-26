@@ -1,6 +1,6 @@
 ---
 x-image: &image
-  image: ${RW_IMAGE:-risingwavelabs/risingwave:v2.0.3}
+  image: ${RW_IMAGE:-risingwavelabs/risingwave:v2.0.2}
 services:
   compactor-0:
     <<: *image
@@ -71,6 +71,7 @@ services:
       RUST_BACKTRACE: "1"
       # If ENABLE_TELEMETRY is not set, telemetry will start by default
       ENABLE_TELEMETRY: ${ENABLE_TELEMETRY:-true}
+      RW_PARALLELISM: "48"
     container_name: compute-node-0
     healthcheck:
       test:
@@ -83,9 +84,138 @@ services:
     deploy:
       resources:
         limits:
-          memory: 26G
+          memory: 2G
         reservations:
-          memory: 26G
+          memory: 1G
+  compute-node-1:
+    <<: *image
+    command:
+      - compute-node
+      - "--listen-addr"
+      - "0.0.0.0:5687"
+      - "--advertise-addr"
+      - "compute-node-1:5687"
+      - "--prometheus-listener-addr"
+      - "0.0.0.0:1221"
+      - "--meta-address"
+      - "http://meta-node-0:5690"
+      - "--config-path"
+      - /risingwave.toml
+    expose:
+      - "5687"
+      - "1221"
+    ports: [ ]
+    depends_on:
+      - meta-node-0
+      # - minio-0
+    volumes:
+      - "./risingwave.toml:/risingwave.toml"
+    environment:
+      RUST_BACKTRACE: "1"
+      # If ENABLE_TELEMETRY is not set, telemetry will start by default
+      ENABLE_TELEMETRY: ${ENABLE_TELEMETRY:-true}
+      RW_PARALLELISM: "48"
+    container_name: compute-node-1
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - bash -c 'printf \"GET / HTTP/1.1\n\n\" > /dev/tcp/127.0.0.1/5687; exit $$?;'
+      interval: 1s
+      timeout: 5s
+      retries: 5
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+  compute-node-2:
+    <<: *image
+    command:
+      - compute-node
+      - "--listen-addr"
+      - "0.0.0.0:5686"
+      - "--advertise-addr"
+      - "compute-node-2:5686"
+      - "--prometheus-listener-addr"
+      - "0.0.0.0:1220"
+      - "--meta-address"
+      - "http://meta-node-0:5690"
+      - "--config-path"
+      - /risingwave.toml
+    expose:
+      - "5686"
+      - "1220"
+    ports: [ ]
+    depends_on:
+      - meta-node-0
+      # - minio-0
+    volumes:
+      - "./risingwave.toml:/risingwave.toml"
+    environment:
+      RUST_BACKTRACE: "1"
+      # If ENABLE_TELEMETRY is not set, telemetry will start by default
+      ENABLE_TELEMETRY: ${ENABLE_TELEMETRY:-true}
+      RW_PARALLELISM: "48"
+    container_name: compute-node-2
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - bash -c 'printf \"GET / HTTP/1.1\n\n\" > /dev/tcp/127.0.0.1/5686; exit $$?;'
+      interval: 1s
+      timeout: 5s
+      retries: 5
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G  
+  compute-node-3:
+    <<: *image
+    command:
+      - compute-node
+      - "--listen-addr"
+      - "0.0.0.0:5685"
+      - "--advertise-addr"
+      - "compute-node-3:5685"
+      - "--prometheus-listener-addr"
+      - "0.0.0.0:1219"
+      - "--meta-address"
+      - "http://meta-node-0:5690"
+      - "--config-path"
+      - /risingwave.toml
+    expose:
+      - "5685"
+      - "1219"
+    ports: [ ]
+    depends_on:
+      - meta-node-0
+      # - minio-0
+    volumes:
+      - "./risingwave.toml:/risingwave.toml"
+    environment:
+      RUST_BACKTRACE: "1"
+      # If ENABLE_TELEMETRY is not set, telemetry will start by default
+      ENABLE_TELEMETRY: ${ENABLE_TELEMETRY:-true}
+      RW_PARALLELISM: "48"
+    container_name: compute-node-3
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - bash -c 'printf \"GET / HTTP/1.1\n\n\" > /dev/tcp/127.0.0.1/5685; exit $$?;'
+      interval: 1s
+      timeout: 5s
+      retries: 5
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
   postgres-0:
     image: "postgres:15-alpine"
     environment:
