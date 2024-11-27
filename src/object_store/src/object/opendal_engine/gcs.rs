@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::sync::Arc;
 use std::env;
+use std::sync::Arc;
 use std::time::Duration;
 
 use opendal::layers::{LoggingLayer, RetryLayer, TimeoutLayer};
@@ -49,10 +49,6 @@ impl OpendalObjectStore {
             .unwrap_or("60".into())
             .parse()
             .unwrap();
-        let op_speed = env::var("RW_OPENDAL_SPEED")
-            .unwrap_or("1048576".into())
-            .parse()
-            .unwrap();
         let op_retry_min_delay = env::var("RW_OPENDAL_RETRY_MIN_DELAY")
             .unwrap_or("1".into())
             .parse()
@@ -76,7 +72,6 @@ impl OpendalObjectStore {
             .layer(
                 TimeoutLayer::default()
                     .with_timeout(Duration::from_secs(op_timeout))
-                    .with_speed(op_speed),
             )
             .finish();
         Ok(Self {
