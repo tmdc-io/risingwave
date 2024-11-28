@@ -384,11 +384,7 @@ pub fn get_sst_data_path(
     object_id: HummockSstableObjectId,
 ) -> String {
     let mut path = String::with_capacity(
-        path_prefix.len()
-            + "/".len()
-            + obj_prefix.len()
-            + ".".len()
-            + OBJECT_SUFFIX.len(),
+        path_prefix.len() + "/".len() + obj_prefix.len() + ".".len() + OBJECT_SUFFIX.len(),
     );
     path.push_str(path_prefix);
     path.push('/');

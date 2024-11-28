@@ -69,10 +69,7 @@ impl OpendalObjectStore {
                     .with_max_delay(Duration::from_secs(op_retry_max_delay))
                     .with_max_times(op_retry_max_times),
             )
-            .layer(
-                TimeoutLayer::default()
-                    .with_timeout(Duration::from_secs(op_timeout))
-            )
+            .layer(TimeoutLayer::default().with_timeout(Duration::from_secs(op_timeout)))
             .finish();
         Ok(Self {
             op,
