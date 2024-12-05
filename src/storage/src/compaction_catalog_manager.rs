@@ -568,6 +568,8 @@ mod tests {
             created_at_cluster_version: None,
             cdc_table_id: None,
             maybe_vnode_count: None,
+            webhook_info: None,
+            job_id: None,
         }
     }
 

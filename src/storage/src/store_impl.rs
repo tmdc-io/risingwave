@@ -13,11 +13,11 @@
 // limitations under the License.
 
 use std::fmt::Debug;
-use std::ops::Deref;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use std::time::Duration;
 
 use enum_as_inner::EnumAsInner;
+use foyer::prometheus::PrometheusMetricsRegistry;
 use foyer::{
     DirectFsDeviceOptions, Engine, HybridCacheBuilder, LargeEngineOptions, RateLimitPicker,
 };
@@ -41,6 +41,9 @@ use crate::monitor::{
 };
 use crate::opts::StorageOpts;
 use crate::StateStore;
+
+static FOYER_METRICS_REGISTRY: LazyLock<PrometheusMetricsRegistry> =
+    LazyLock::new(|| PrometheusMetricsRegistry::new(GLOBAL_METRICS_REGISTRY.clone()));
 
 mod opaque_type {
     use super::*;
@@ -222,7 +225,6 @@ macro_rules! dispatch_state_store {
 
 #[cfg(any(debug_assertions, test, feature = "test"))]
 pub mod verify {
-    use std::collections::HashSet;
     use std::fmt::Debug;
     use std::future::Future;
     use std::marker::PhantomData;
@@ -231,7 +233,6 @@ pub mod verify {
 
     use bytes::Bytes;
     use risingwave_common::bitmap::Bitmap;
-    use risingwave_common::catalog::TableId;
     use risingwave_common::hash::VirtualNode;
     use risingwave_hummock_sdk::key::{TableKey, TableKeyRange};
     use risingwave_hummock_sdk::HummockReadEpoch;
@@ -575,20 +576,6 @@ pub mod verify {
             self.actual.try_wait_epoch(epoch, options)
         }
 
-        fn sync(&self, epoch: u64, table_ids: HashSet<TableId>) -> impl SyncFuture {
-            let expected_future = self
-                .expected
-                .as_ref()
-                .map(|expected| expected.sync(epoch, table_ids.clone()));
-            let actual_future = self.actual.sync(epoch, table_ids);
-            async move {
-                if let Some(expected_future) = expected_future {
-                    expected_future.await?;
-                }
-                actual_future.await
-            }
-        }
-
         async fn new_local(&self, option: NewLocalOptions) -> Self::Local {
             let expected = if let Some(expected) = &self.expected {
                 Some(expected.new_local(option.clone()).await)
@@ -629,19 +616,13 @@ impl StateStoreImpl {
     ) -> StorageResult<Self> {
         const MB: usize = 1 << 20;
 
-        if cfg!(not(madsim)) {
-            metrics_prometheus::Recorder::builder()
-                .with_registry(GLOBAL_METRICS_REGISTRY.deref().clone())
-                .build_and_install();
-        }
-
         let meta_cache = {
             let mut builder = HybridCacheBuilder::new()
                 .with_name("foyer.meta")
+                .with_metrics_registry(FOYER_METRICS_REGISTRY.clone())
                 .memory(opts.meta_cache_capacity_mb * MB)
                 .with_shards(opts.meta_cache_shard_num)
                 .with_eviction_config(opts.meta_cache_eviction_config.clone())
-                .with_object_pool_capacity(1024 * opts.meta_cache_shard_num)
                 .with_weighter(|_: &HummockSstableObjectId, value: &Box<Sstable>| {
                     u64::BITS as usize / 8 + value.estimate_size()
                 })
@@ -684,13 +665,13 @@ impl StateStoreImpl {
         let block_cache = {
             let mut builder = HybridCacheBuilder::new()
                 .with_name("foyer.data")
+                .with_metrics_registry(FOYER_METRICS_REGISTRY.clone())
                 .with_event_listener(Arc::new(BlockCacheEventListener::new(
                     state_store_metrics.clone(),
                 )))
                 .memory(opts.block_cache_capacity_mb * MB)
                 .with_shards(opts.block_cache_shard_num)
                 .with_eviction_config(opts.block_cache_eviction_config.clone())
-                .with_object_pool_capacity(1024 * opts.block_cache_shard_num)
                 .with_weighter(|_: &SstableBlockIndex, value: &Box<Block>| {
                     // FIXME(MrCroxx): Calculate block weight more accurately.
                     u64::BITS as usize * 2 / 8 + value.raw().len()
@@ -826,20 +807,16 @@ impl AsHummock for SledStateStore {
 
 #[cfg(debug_assertions)]
 pub mod boxed_state_store {
-    use std::collections::HashSet;
     use std::future::Future;
     use std::ops::{Deref, DerefMut};
     use std::sync::Arc;
 
     use bytes::Bytes;
     use dyn_clone::{clone_trait_object, DynClone};
-    use futures::future::BoxFuture;
-    use futures::FutureExt;
     use risingwave_common::bitmap::Bitmap;
-    use risingwave_common::catalog::TableId;
     use risingwave_common::hash::VirtualNode;
     use risingwave_hummock_sdk::key::{TableKey, TableKeyRange};
-    use risingwave_hummock_sdk::{HummockReadEpoch, SyncResult};
+    use risingwave_hummock_sdk::HummockReadEpoch;
 
     use crate::error::StorageResult;
     use crate::hummock::HummockStorage;
@@ -1161,12 +1138,6 @@ pub mod boxed_state_store {
             options: TryWaitEpochOptions,
         ) -> StorageResult<()>;
 
-        fn sync(
-            &self,
-            epoch: u64,
-            table_ids: HashSet<TableId>,
-        ) -> BoxFuture<'static, StorageResult<SyncResult>>;
-
         async fn new_local(&self, option: NewLocalOptions) -> BoxDynamicDispatchedLocalStateStore;
     }
 
@@ -1178,14 +1149,6 @@ pub mod boxed_state_store {
             options: TryWaitEpochOptions,
         ) -> StorageResult<()> {
             self.try_wait_epoch(epoch, options).await
-        }
-
-        fn sync(
-            &self,
-            epoch: u64,
-            table_ids: HashSet<TableId>,
-        ) -> BoxFuture<'static, StorageResult<SyncResult>> {
-            self.sync(epoch, table_ids).boxed()
         }
 
         async fn new_local(&self, option: NewLocalOptions) -> BoxDynamicDispatchedLocalStateStore {
@@ -1265,14 +1228,6 @@ pub mod boxed_state_store {
             options: TryWaitEpochOptions,
         ) -> impl Future<Output = StorageResult<()>> + Send + '_ {
             self.deref().try_wait_epoch(epoch, options)
-        }
-
-        fn sync(
-            &self,
-            epoch: u64,
-            table_ids: HashSet<TableId>,
-        ) -> impl Future<Output = StorageResult<SyncResult>> + Send + 'static {
-            self.deref().sync(epoch, table_ids)
         }
 
         fn new_local(

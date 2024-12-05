@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     Cardinality, ColumnCatalogArray, ColumnOrderArray, FragmentId, I32Array, ObjectId, SourceId,
-    TableId, TableVersion,
+    TableId, TableVersion, WebhookSourceInfo,
 };
 
 #[derive(
@@ -135,6 +135,7 @@ pub struct Model {
     pub incoming_sinks: I32Array,
     pub cdc_table_id: Option<String>,
     pub vnode_count: i32,
+    pub webhook_info: Option<WebhookSourceInfo>,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -242,7 +243,7 @@ impl From<PbTable> for ActiveModel {
             name: Set(pb_table.name),
             optional_associated_source_id,
             table_type: Set(table_type.into()),
-            belongs_to_job_id: Set(None),
+            belongs_to_job_id: Set(pb_table.job_id.map(|x| x as _)),
             columns: Set(pb_table.columns.into()),
             pk: Set(pb_table.pk.into()),
             distribution_key: Set(pb_table.distribution_key.into()),
@@ -267,6 +268,7 @@ impl From<PbTable> for ActiveModel {
             incoming_sinks: Set(pb_table.incoming_sinks.into()),
             cdc_table_id: Set(pb_table.cdc_table_id),
             vnode_count,
+            webhook_info: Set(pb_table.webhook_info.as_ref().map(WebhookSourceInfo::from)),
         }
     }
 }
